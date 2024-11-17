@@ -1,0 +1,167 @@
+---
+title: "Is Ozempic Really Saving Lives"
+output:
+  html_document:
+    df_print: paged
+---
+
+Author: Brendan G.
+
+Date: November 17, 2024
+
+### Introduction
+
+With the popularity of Ozempic(semaglutide) for its dramatic effect on weight, I was curious to see if it and other semaglutide drugs was living up to the hype. Novo Nordisk, a pharmaceutical company developed Ozempic in December 2017 "to improve blood sugar in adults with type 2 diabetes [along with diet and exercise]. In adults with type 2 diabetes and known heart disease, Ozempic reduces the risk of major cardiovascular events such as stroke, heart attack, or death. You may also lose some weight." What follows is a brief analysis of the data in the US looking at not only weight-loss but also cardiovascular mortality since Ozempic's first arrival on the pharmaceutical scene in December 2017.
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(gtrendsR)
+library(quantmod)
+library(pandoc)
+```
+
+```{r message=FALSE, warning=FALSE}
+trends <- gtrends(keyword = c("semaglutide", "wegovy", "ozempic", "rybelsus"), gprop = c("web", "news", "images", "froogle", "youtube" ), category = 0, geo = 'US', time = "2016-01-01 2024-11-01", low_search_volume = FALSE, onlyInterest = TRUE)
+trends_over_time <- trends$interest_over_time
+trends_over_time <- trends_over_time %>% mutate(hits = as.numeric(hits))
+```
+
+### Google Trend Data for Semaglutide Product
+
+Google trends were obtained across major platforms to look at not only ozempic, but also the generic name, semaglutide, and the associated brands of rybelsus and wegovy.
+
+```{r message=FALSE, warning=FALSE}
+trends_over_time_plot <- ggplot(trends_over_time, aes()) + 
+     geom_line(aes(date, hits, color = keyword)) +
+     labs(title = "Semaglutide and Brand-name Search Hits over Time", x = "Year", y = "Number of Search Hits (set to 100)", color = "Search Entry" )
+trends_over_time_plot
+```
+
+### Stock Trends for Novo Nordisk
+
+Using the quantmod package, stock market trends were gathered for Novo Nordisk (NVO), the pharmaceutical inventor of semaglutide products. An annotation line was made to note the launch date of Ozempic.
+
+```{r message=FALSE, warning=FALSE}
+getSymbols("NVO")
+
+```
+
+```{r message=FALSE, warning=FALSE}
+novo_stocks <- data.frame("Novo Nordisk" = NVO$NVO.Close, "Date" = as.Date(row.names(as.data.frame(NVO))))
+
+novo_stocks <- novo_stocks %>% filter(Date > as.Date("2016-01-01"))
+
+novo_stocks_plot <- ggplot(novo_stocks, aes()) + geom_line(aes(Date, NVO.Close)) +
+  scale_color_discrete(name = "Company", labels = "Novo Nordisk") + 
+  labs(title = "Stock Prices of Novo Nordisk over Time", y = "Stock Price", caption = "*Red dashed line represents the date OZEMPIC was first released (Dec 2017)") +
+     geom_vline(xintercept = as.numeric(as.Date("2017-12-01")), 
+             color = "red", linetype = "dashed", size = 1)  +
+          theme_grey()
+novo_stocks_plot
+```
+
+### Obesity and Morbid Obesity Trends as Percentage of US Population
+
+Weight loss was not the primary end-point of semaglutide drugs, and this is acknowledged by the pharmaceutical company as such. Concomitant disease states such as high blood pressure, high cholesterol, and diabetes increase linearly with body mass index (BMI); however, obesity (BMI \> 30) and morbid obesity (BMI \> 40), do not necessarily impute cardiovascular disease.
+
+```{r message=FALSE, warning=FALSE}
+BMI <- read.csv("BMI_percent.csv")
+CVD <- read.csv("CVD_mort_by_year.csv")
+cost <- read.csv("Health_Cost.csv")
+fills <- read.csv("number_fills.csv")
+
+BMI_plot <- ggplot(BMI, aes(x = Year)) + 
+     geom_line(aes(y = AA_Obesity, color = "darkred")) + 
+     geom_line(aes(y = AA_Severe_Obesity, color="steelblue")) +
+     scale_color_discrete(name = "Population Percent", labels = c("BMI 30-40", "BMI > 40")) +
+     labs(title = "Prevalence of Obesity vs. Severe Obesity by Year in US", x = "Year", y = "Age-Adjusted Obesity Percentage") 
+BMI_plot
+```
+
+### Trends of US Deaths from Cardiovascular Disease (Heart Disease and Stroke)
+
+As death by cardiovascular disease (CVD), remains the number one cause of death in the United States, a more noble goal than weight loss would be to evaluate if Ozempic reduces mortality from cardiovascular disease over time.
+
+```{r message=FALSE, warning=FALSE}
+CVD_plot <- ggplot(CVD, aes(x = Year)) + 
+     geom_line(aes(y = AADR_Cardiovascular_Disease, color = "darkred")) +
+     scale_color_discrete(name = "Legend", labels = "Number of Deaths") +
+          labs(title = "Age-Adjusted Mortality from Cardiovascular Disease (US)", x = "Year", y = "Deaths from Cardiovascular Deaths (per 100k)", caption = "*Cardiovascular disease combines heart disease and stroke data.") 
+CVD_plot
+```
+
+### Average Cost Per Capita in the US
+
+Interventions that reduce or eliminate causes of mortality within a country, should be reflected in the per-capita spending within the healthcare sector. As US healthcare costs continue to rise without evidence of improved overall morbidity/mortality benefits, any intervention that would provide a cost savings would be noteworthy, otherwise it is just another sunk cost.
+
+```{r message=FALSE, warning=FALSE}
+cost_plot <- ggplot(cost, aes(x=Year, y= Dollars_per_Capita, color="Healthcare Per Capita in USD")) + 
+     geom_line() +
+     labs(title = "Cost of US Healthcare per Person by Year", x = "Year", y = "US Healthcare Cost Per Capita") 
+cost_plot
+```
+
+### Semaglutide Trends
+
+The number of semaglutide prescriptions filled and patients taking semaglutide-based drugs has increased steadily, particularly regarding its FDA approval in December 2017. Of note, the cost-per-fill has remained relatively stable, albeit, expensive.
+
+```{r message=FALSE, warning=FALSE}
+fills_plot <- ggplot(fills, aes(x = Year)) + 
+   geom_line(aes(y=Fills, color = "Prescriptions Filled (set to 1000)")) +
+   geom_line(aes(y=Patients, color = "Patients (set to 1000)")) +
+   geom_line(aes(y=Avg_Cost_Per_Fill, color = "Cost per Fill")) +
+   #scale_color_discrete(name = "Legend", labels = c("Prescriptions Filled (set to 1000)", "Patients (set to 1000)", "Cost per Fill (USD)")) +
+   labs(title = "Patients, Prescriptions, & Cost per Fill of Semaglutide", x = "Year", y = "Volume") 
+fills_plot
+```
+
+### Semaglutide Summary - Savior or Swindle?
+
+This data journey ends at an inconclusive conclusion. It appears to be too early to note any significant difference in outcomes with respect to BMI, cardiovascular mortality, or healthcare spending in the US since the availablity of semaglutide. What has shown to be benefited is the stock price for NOvo Nordisk, and one can extrapolate that data to its shareholders and executives.
+
+There are likely myriad confounding factors that are not yet conferring a benefit on semaglutide. Some suggested factors are as follows, but not limited to:
+
+1.  It may be early. It is unknown how long it would reasonably take to for a medication of this drug class to demonstrate an effect on the cardiovascular mortality data. This, arguably, is a "wider ship" to turn than other indices like BMI. To this point, there are not enough data points since semaglutide's inception to create a meaningful linear regression.
+
+2.  It may be underpowered. As in the previous point, there may be a critical mass of patients that has not been reached yet to provide a statistical change
+
+3.  It may be expensive. The cost to entry may be too high for the most at risk populations and subsequently this is skewing the cardiovascular and obesity data. It would be interesting to see if/when the cost of these drugs decreases and/or more insurance companies cover them, what will happen to observances.
+
+4.  It may be COVID. For the rest of my data science career, COVID-19 will always be my "yes, but..." when it comes to confounders. The truth is that in these types of healthcare analyses, the dust is still settling relative to health costs and index mortality data sets. As more distance is created from The Pandemic, there may be a noticeable shift.
+
+```{r message=FALSE, warning=FALSE}
+summary <- read.csv("Semaglutide_Cross_Sectional.csv")
+
+summary_plot <- ggplot(summary, aes(x = Year)) + 
+   geom_line(aes(y=Patients, color = "Patients Prescribed (set to 10k)")) +
+   geom_line(aes(y=CVD, color = "Cardiovascular Deaths (per 100k")) +
+   geom_line(aes(y=BMI_obese, color = "BMI 30-40")) +
+     geom_line(aes(y=BMI_morbid, color = "BMI > 40")) +
+      labs(title = "Semaglutide: Summary",subtitle = "Patient Numbers, Cardiovascular Mortality, & Obesity Rates", x = "Year", y = "Volume") 
+summary_plot
+```
+
+### References
+
+OZEMPIC
+
+Source: <https://www.ozempic.com/why-ozempic/what-is-ozempic.html?showisi=true&&utm_source=google&utm_medium=cpc&utm_term=ozempic&utm_campaign=1_All_Shared_BR_Branded_Specifics_2023&mkwid=s-dc_pcrid_677045568899_pkw_ozempic_pmt_e_slid__product_&pgrid=158457129350&ptaid=kwd-392229870365&gad_source=1&gclid=Cj0KCQiA88a5BhDPARIsAFj595ju_wNsllK1y3QpLb01Cw3qc_oNwytA5v_XdNGMDM8wkIAuVlRrGVkaAm7BEALw_wcB&gclsrc=aw.ds>
+
+CVD AAMRs CDC: NCHS Data Briefs, "Mortality in the United States", years 2014-2023
+
+AHA: 2024 Heart Disease and Stroke Statistics: A Report of US and Global Data from the American Heart Association
+
+OBESITY CDC: NCHS, "Obesity and Severe Obesity Prevalence in Adults: United States, August 2021 - August 2023."; In Data Table for Figure 4. "Trends in age-adjusted obesity and severe obesity prevalence in adults age 20 and older: United States, 2013–2014 through August 2021–August 2023"
+
+HEALTH COST CMS: National Health Expenditure Accounts, NHE Summary 1960-2022
+
+SEMAGLUTIDE SALES Pharmalive.com, "Company of the Year 2023: Novo Nordisk - Riding the Semaglutide Wave."
+
+AHRQ, MEPS Data Tools, Prescribed Drugs
+
+Clincalc, Drug Usage Statistics, United States, 2013-2022
+
+###### **Medical Disclaimer:** This data analysis is provided to the general public for reference and educational purposes only. The content is not meant to be complete or exhaustive or to be applicable to any specific individual's medical condition. This analysis is not an attempt to practice medicine or provide medical advice, and it should not be used to make a diagnosis or to replace or overrule a physician's judgment. The content on this website is not intended to be a substitute for professional medical advice, diagnosis, or treatment. Always consult with a qualified and licensed physician, and follow their advice without delay regardless of anything read on this website.
+
+###### \*\*As of the publishing of this document, ozempic, rybelsus, wegovy, semaglutide are copyright of Novo Nordisk, Bagsvaerd, Denmark. All rights reserved thereto.
